@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsNumber, Min } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsNumber, Min, IsUrl } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateVariantDto {
@@ -17,6 +17,11 @@ export class CreateVariantDto {
   stock: number;
 }
 
+export class CreateImageDto {
+  @IsUrl()
+  url: string;
+}
+
 export class CreateProductDto {
   @IsString()
   name: string;
@@ -31,6 +36,12 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateImageDto)
+  images?: CreateImageDto[];
 
   @IsArray()
   @ValidateNested({ each: true })

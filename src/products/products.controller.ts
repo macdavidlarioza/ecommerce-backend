@@ -22,6 +22,13 @@ export class ProductsController {
     return this.productsService.findAll();
   }
 
+  @Get('admin/all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  findAllAdmin() {
+    return this.productsService.findAllAdmin();
+  }
+
   @Get(':slug')
   findOne(@Param('slug') slug: string) {
     return this.productsService.findOne(slug);
@@ -40,4 +47,17 @@ export class ProductsController {
   remove(@Param('id') id: string) {
     return this.productsService.remove(id);
   }
+  @Patch(':id/variants')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  updateVariants(@Param('id') id: string, @Body() body: { variants: any[] }) {
+    return this.productsService.updateVariants(id, body.variants);
+  }
+
+  @Delete(':id/variants/:variantId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  removeVariant(@Param('id') id: string, @Param('variantId') variantId: string) {
+    return this.productsService.removeVariant(id, variantId);
+}
 }
