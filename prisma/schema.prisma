@@ -43,11 +43,15 @@ enum PaymentStatus {
 
 model User {
   id        String    @id @default(cuid())
-  email     String    @unique
+  email     String?   @unique
+  username  String?   @unique
   password  String
   firstName String
   lastName  String
   role      Role      @default(CUSTOMER)
+  isVerified Boolean  @default(false)
+  otp           String?
+  otpExpiresAt  DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 

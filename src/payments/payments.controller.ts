@@ -4,31 +4,46 @@ import {
   Body,
   UseGuards,
   Request,
-  Headers,
   HttpCode,
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
-import { CreateIntentDto } from './dto/create-intent.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { IsNotEmpty, IsString } from 'class-validator';
+import { Get, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
+
+class CreateCheckoutDto {
+  @IsString()
+  @IsNotEmpty()
+  orderId: string;
+}
 
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
-  // Customer creates a payment intent for their order
-  @Post('create-intent')
+  @Post('create-checkout')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('CUSTOMER')
-  createIntent(@Request() req, @Body() dto: CreateIntentDto) {
-    return this.paymentsService.createPaymentIntent(req.user.id, dto.orderId);
+  createCheckout(@Request() req, @Body() dto: CreateCheckoutDto) {
+    return this.paymentsService.createCheckoutSession(req.user.id, dto.orderId);
   }
 
-  // PayMongo calls this webhook automatically — no JWT needed
   @Post('webhook')
   @HttpCode(200)
   handleWebhook(@Body() payload: any) {
     return this.paymentsService.handleWebhook(payload);
+  }
+
+  @Get('success')
+  handleSuccess(@Query('order_id') orderId: string, @Res() res: Response) {
+    return res.redirect(`http://localhost:5173/order-success?order_id=${orderId}`);
+  }
+
+  @Get('cancel')
+  handleCancel(@Res() res: Response) {
+    return res.redirect(`http://localhost:5173/checkout`);
   }
 }

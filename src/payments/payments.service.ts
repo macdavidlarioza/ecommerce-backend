@@ -16,10 +16,21 @@ export class PaymentsService {
     return `Basic ${encoded}`;
   }
 
-  async createPaymentIntent(userId: string, orderId: string) {
+  async createCheckoutSession(userId: string, orderId: string) {
     // 1. Find the order and make sure it belongs to this user
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
+      include: {
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!order) throw new NotFoundException('Order not found.');
@@ -27,24 +38,28 @@ export class PaymentsService {
       throw new BadRequestException('This order has already been paid.');
     }
 
-    // 2. Convert total to centavos (PayMongo uses the smallest currency unit)
-    //    ₱100.00 → 10000
-    const amountInCentavos = Math.round(Number(order.totalAmount) * 100);
+    // 2. Build line items for the checkout session
+    const lineItems = order.items.map((item) => ({
+      currency: 'PHP',
+      amount: Math.round(Number(item.price) * 100),
+      name: `${item.variant.product.name} - ${item.variant.name}`,
+      quantity: item.quantity,
+    }));
 
-    // 3. Call PayMongo API to create a Payment Intent
+    // 3. Create a PayMongo Checkout Session
     const response = await axios.post(
-      'https://api.paymongo.com/v1/payment_intents',
+      'https://api.paymongo.com/v1/checkout_sessions',
       {
         data: {
           attributes: {
-            amount: amountInCentavos,
-            payment_method_allowed: ['gcash', 'paymaya', 'card'],
-            payment_method_options: {
-              card: { request_three_d_secure: 'any' },
-            },
-            currency: 'PHP',
-            capture_type: 'automatic',
+            line_items: lineItems,
+            payment_method_types: ['gcash', 'paymaya', 'card'],
+            success_url: `${process.env.FRONTEND_URL}/payments/success?order_id=${order.id}`,
+            cancel_url: `${process.env.FRONTEND_URL}/payments/cancel`,
             description: `macbid order ${order.id}`,
+            send_email_receipt: false,
+            show_description: true,
+            show_line_items: true,
           },
         },
       },
@@ -56,43 +71,54 @@ export class PaymentsService {
       },
     );
 
-    const intent = response.data.data;
+    const session = response.data.data;
 
-    // 4. Save the payment intent ID to the order for reference
+    // 4. Save the session ID to the order for webhook reference
     await this.prisma.order.update({
       where: { id: orderId },
-      data: { paymongoPaymentIntentId: intent.id },
+      data: { paymongoPaymentIntentId: session.id },
     });
 
-    // 5. Return the client_key — the frontend needs this to process payment
+    // 5. Return the checkout URL — frontend will redirect here
     return {
-      paymentIntentId: intent.id,
-      clientKey: intent.attributes.client_key,
-      amount: amountInCentavos,
+      checkoutUrl: session.attributes.checkout_url,
+      sessionId: session.id,
     };
   }
 
   async handleWebhook(payload: any) {
     const eventType = payload?.data?.attributes?.type;
-    const paymentData = payload?.data?.attributes?.data;
+    const eventData = payload?.data?.attributes?.data;
 
-    if (!eventType || !paymentData) return { received: true };
+    if (!eventType || !eventData) return { received: true };
 
-    if (eventType === 'payment.paid') {
-      // Extract the payment intent ID from the webhook payload
-      const paymentIntentId =
-        paymentData?.attributes?.payment_intent_id ?? null;
+    if (
+      eventType === 'payment.paid' ||
+      eventType === 'checkout_session.payment.paid'
+    ) {
+      let sessionId: string | null = null;
 
-      if (!paymentIntentId) return { received: true };
+      // For checkout_session.payment.paid, the data IS the session
+      if (eventType === 'checkout_session.payment.paid') {
+        sessionId = eventData?.id ?? null;
+      }
 
-      // Find the order with this payment intent ID
+      // For payment.paid, extract from metadata or payment intent
+      if (eventType === 'payment.paid') {
+        sessionId =
+          eventData?.attributes?.payment_intent_id ??
+          eventData?.attributes?.checkout_session_id ??
+          null;
+      }
+
+      if (!sessionId) return { received: true };
+
       const order = await this.prisma.order.findFirst({
-        where: { paymongoPaymentIntentId: paymentIntentId },
+        where: { paymongoPaymentIntentId: sessionId },
       });
 
       if (!order) return { received: true };
 
-      // Mark the order as PAID and CONFIRMED
       await this.prisma.order.update({
         where: { id: order.id },
         data: {
@@ -103,18 +129,19 @@ export class PaymentsService {
     }
 
     if (eventType === 'payment.failed') {
-      const paymentIntentId =
-        paymentData?.attributes?.payment_intent_id ?? null;
+      const sessionId =
+        eventData?.attributes?.payment_intent_id ??
+        eventData?.attributes?.checkout_session_id ??
+        null;
 
-      if (!paymentIntentId) return { received: true };
+      if (!sessionId) return { received: true };
 
       const order = await this.prisma.order.findFirst({
-        where: { paymongoPaymentIntentId: paymentIntentId },
+        where: { paymongoPaymentIntentId: sessionId },
       });
 
       if (!order) return { received: true };
 
-      // Mark the order as CANCELLED if payment failed
       await this.prisma.order.update({
         where: { id: order.id },
         data: { status: 'CANCELLED' },
