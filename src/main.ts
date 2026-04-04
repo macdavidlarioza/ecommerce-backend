@@ -8,7 +8,7 @@ async function bootstrap() {
   app.enableCors({
   origin: [
     'http://localhost:5173',                          // local dev
-    'macbid.vercel.app',  // your Vercel URL
+    'https://macbid.vercel.app',  // your Vercel URL
   ],
   credentials: true,
 });
