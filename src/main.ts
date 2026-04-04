@@ -8,7 +8,7 @@ async function bootstrap() {
   app.enableCors({
   origin: [
     'http://localhost:5173',                          // local dev
-    'https://e-commerce-app-three-smoky.vercel.app',  // your Vercel URL
+    'macbid.vercel.app',  // your Vercel URL
   ],
   credentials: true,
 });
