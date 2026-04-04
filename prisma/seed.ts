@@ -4,12 +4,17 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  const username = 'macbidsu';
-  const password = 'topsecret';
+  const username = process.env.ADMIN_USERNAME;
+  const password = process.env.ADMIN_PASSWORD;
   const firstName = 'Mac';
   const lastName = 'Bid';
 
-  // Check if admin already exists
+  if (!username || !password) {
+    throw new Error(
+      'ADMIN_USERNAME and ADMIN_PASSWORD must be set in environment variables before seeding.',
+    );
+  }
+
   const existing = await prisma.user.findUnique({
     where: { username },
   });
@@ -35,7 +40,6 @@ async function main() {
   console.log('─────────────────────────────────');
   console.log('Admin account created successfully');
   console.log('Username:', username);
-  console.log('Password:', password);
   console.log('─────────────────────────────────');
 }
 
