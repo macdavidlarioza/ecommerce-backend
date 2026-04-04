@@ -17,7 +17,7 @@ import type { Response } from 'express';
 class CreateCheckoutDto {
   @IsString()
   @IsNotEmpty()
-  orderId: string;
+  orderId!: string;
 }
 
 @Controller('payments')
@@ -39,11 +39,13 @@ export class PaymentsController {
 
   @Get('success')
   handleSuccess(@Query('order_id') orderId: string, @Res() res: Response) {
-    return res.redirect(`http://localhost:5173/order-success?order_id=${orderId}`);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    return res.redirect(`${frontendUrl}/order-success?order_id=${orderId}`);
   }
 
   @Get('cancel')
   handleCancel(@Res() res: Response) {
-    return res.redirect(`http://localhost:5173/checkout`);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    return res.redirect(`${frontendUrl}/checkout`);
   }
 }
