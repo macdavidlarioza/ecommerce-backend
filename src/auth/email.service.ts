@@ -4,6 +4,8 @@ import axios from 'axios';
 @Injectable()
 export class EmailService {
   async sendOtp(email: string, otp: string, firstName: string) {
+    console.log('BREVO_API_KEY:', process.env.BREVO_API_KEY ? 'EXISTS' : 'MISSING');
+    console.log('BREVO_SENDER_EMAIL:', process.env.BREVO_SENDER_EMAIL ? 'EXISTS' : 'MISSING');
     try {
       await axios.post(
         'https://api.brevo.com/v3/smtp/email',
