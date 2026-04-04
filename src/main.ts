@@ -1,18 +1,19 @@
-import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
+  
+  app.useGlobalPipes(new ValidationPipe());
+  
   app.enableCors({
-  origin: [
-    'http://localhost:5173',                          // local dev
-    'https://macbid.vercel.app',  // your Vercel URL
-  ],
-  credentials: true,
-});
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true,
+  });
 
-  await app.listen(process.env.PORT ?? 3000);
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
+  console.log(`Application is running on port ${port}`);
 }
 bootstrap();
